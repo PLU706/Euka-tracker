@@ -79,11 +79,14 @@ function showTab(name) {
 
 // ─── 报告层级联动 ─────────────────────────────────────
 function setupReportLevelListener() {
-  document.getElementById("reportLevel").addEventListener("change", function() {
-    const level = this.value;
+  const el = document.getElementById("reportLevel");
+  function update() {
+    const level = el.value;
     document.getElementById("reportTerm").style.display = (level==="week"||level==="term") ? "inline-block" : "none";
     document.getElementById("reportWeek").style.display = level==="week" ? "inline-block" : "none";
-  });
+  }
+  el.addEventListener("change", update);
+  update(); // 页面加载时立即执行一次
 }
 
 // ─── 记录表 ────────────────────────────────────────────
