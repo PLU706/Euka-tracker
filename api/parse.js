@@ -73,3 +73,4 @@ ${text}
   }
 };
 console.log("KEY:", process.env.GEMINI_API_KEY);
+// force new deploy
