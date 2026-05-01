@@ -18,7 +18,7 @@ async function uploadImage() {
 
   const res = await fetch("/api/parse", {
     method: "POST",
-    body: JSON.stringify({ image: base64 })
+    body: JSON.stringify({ image: base64, mimeType: file.type })
   });
 
   const data = await res.json();
@@ -112,76 +112,75 @@ function drawChart() {
   });
 }
 
-function generateReport() {
+async function generateReport() {
   const div = document.getElementById("report");
-  div.innerHTML = "";
 
   if (records.length === 0) {
     div.innerHTML = "暂无数据";
     return;
   }
 
-  // 按科目分组
-  const subjectMap = {};
-  records.forEach(r => {
-    const subj = r.subject || "未知";
-    if (!subjectMap[subj]) subjectMap[subj] = [];
-    subjectMap[subj].push(r);
-  });
+  div.innerHTML = "<p style='color:blue'>⏳ AI 正在分析所有记录，请稍等...</p>";
 
-  let html = "";
-
-  Object.entries(subjectMap).forEach(([subj, recs]) => {
-    const scores = recs.map(r => parseFloat(r.score)).filter(s => !isNaN(s));
-    if (scores.length === 0) return;
-
-    const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
-    const trend = scores.length > 1
-      ? (scores[scores.length - 1] >= scores[0] ? "📈 上升" : "📉 下降")
-      : "—";
-
-    // 收集 AI 返回的薄弱点和建议（来自 parse.js 识别结果）
-    const weakSet = new Set();
-    const suggSet = new Set();
-    recs.forEach(r => {
-      (r.weak_points || []).forEach(w => weakSet.add(w));
-      (r.suggestions || []).forEach(s => suggSet.add(s));
+  try {
+    const res = await fetch("/api/report", {
+      method: "POST",
+      body: JSON.stringify({ records })
     });
 
-    // 兜底：如果 AI 没有返回薄弱点，根据成绩给通用建议
-    if (suggSet.size === 0) {
-      if (parseFloat(avg) < 70) {
-        suggSet.add("平均分低于70%，建议重点复习本科目基础概念");
-      }
-      if (trend === "📉 下降") {
-        suggSet.add("成绩呈下降趋势，建议复盘近期错题，找出知识漏洞");
-      }
-      if (parseFloat(avg) >= 85) {
-        suggSet.add("整体表现优秀，可适当挑战更高难度的练习");
-      }
+    const data = await res.json();
+
+    if (data.error) {
+      div.innerHTML = "报告生成失败：" + data.error;
+      return;
     }
 
-    html += `
-      <div style="margin-bottom:24px; padding:16px; border:1px solid #ddd; border-radius:8px;">
-        <h3>📚 ${subj}</h3>
-        <p>共 ${recs.length} 条记录 &nbsp;|&nbsp; 平均成绩：<strong>${avg}%</strong> &nbsp;|&nbsp; 趋势：${trend}</p>
+    // 渲染按科目分组的报告
+    let html = "";
 
-        <h4>⚠️ 薄弱点</h4>
-        <ul>
-          ${weakSet.size > 0
-            ? [...weakSet].map(w => `<li>${w}</li>`).join("")
-            : "<li>暂无明显薄弱点</li>"}
-        </ul>
+    (data.subjects || []).forEach(s => {
+      const trend = s.trend === "up" ? "📈 上升" : s.trend === "down" ? "📉 下降" : "—";
+      html += `
+        <div style="margin-bottom:24px; padding:16px; border:1px solid #ddd; border-radius:8px;">
+          <h3>📚 ${s.subject}</h3>
+          <p>共 ${s.record_count} 条记录 &nbsp;|&nbsp; 平均成绩：<strong>${s.avg_score}%</strong> &nbsp;|&nbsp; 趋势：${trend}</p>
 
-        <h4>💡 学习建议</h4>
-        <ul>
-          ${[...suggSet].map(s => `<li>${s}</li>`).join("")}
-        </ul>
-      </div>
-    `;
-  });
+          <h4>⚠️ 持续薄弱点</h4>
+          <ul>
+            ${(s.persistent_weak || []).length > 0
+              ? s.persistent_weak.map(w => `<li>${w}</li>`).join("")
+              : "<li>暂无持续薄弱点</li>"}
+          </ul>
 
-  div.innerHTML = html;
+          <h4>✅ 已掌握内容</h4>
+          <ul>
+            ${(s.strengths || []).length > 0
+              ? s.strengths.map(w => `<li>${w}</li>`).join("")
+              : "<li>暂无数据</li>"}
+          </ul>
+
+          <h4>💡 针对性建议</h4>
+          <ul>
+            ${(s.suggestions || []).map(sg => `<li>${sg}</li>`).join("")}
+          </ul>
+        </div>
+      `;
+    });
+
+    if (data.overall) {
+      html += `
+        <div style="padding:16px; background:#f9f9f9; border-radius:8px;">
+          <h3>🎯 综合建议</h3>
+          <p>${data.overall}</p>
+        </div>
+      `;
+    }
+
+    div.innerHTML = html;
+
+  } catch (e) {
+    div.innerHTML = "报告生成失败：" + e.message;
+  }
 }
 
 function toBase64(file) {
