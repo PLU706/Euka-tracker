@@ -9,6 +9,10 @@
     table { border-collapse: collapse; width: 100%; }
     td, th { border: 1px solid #ccc; padding: 8px; }
     #loading { display:none; color:blue; }
+    #chartWrapper {
+      width: 600px;
+      max-width: 100%;
+    }
   </style>
 </head>
 <body>
@@ -38,7 +42,9 @@
 <button onclick="generateReport()">生成评估报告</button>
 
 <h2>📈 成绩趋势</h2>
-<canvas id="chart"></canvas>
+<div id="chartWrapper">
+  <canvas id="chart"></canvas>
+</div>
 
 <h2>📊 报告</h2>
 <div id="report"></div>
