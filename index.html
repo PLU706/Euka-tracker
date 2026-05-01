@@ -3,37 +3,47 @@
 <head>
   <meta charset="UTF-8" />
   <title>学习记录分析工具</title>
-  <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    table { border-collapse: collapse; margin-top: 20px; }
+    td, th { border: 1px solid #ccc; padding: 10px; }
+    button { margin-top: 15px; }
+  </style>
 </head>
-
 <body>
-  <h1>📊 学习记录分析工具</h1>
 
-  <input type="file" id="upload" />
+<h1>📊 学习记录分析工具</h1>
 
-  <p id="status"></p>
+<input type="file" id="fileInput" />
 
-  <h2>📋 记录表</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>科目</th>
-        <th>学期/周次</th>
-        <th>课程</th>
-        <th>Lesson</th>
-        <th>内容</th>
-        <th>成绩</th>
-      </tr>
-    </thead>
-    <tbody id="table"></tbody>
-  </table>
+<p id="status"></p>
 
-  <button onclick="generateReport()">生成评估报告</button>
+<h2>📋 记录表</h2>
 
-  <h2>📈 报告</h2>
-  <pre id="report"></pre>
+<table>
+  <tr>
+    <th>科目</th>
+    <th>学期/周次</th>
+    <th>课程</th>
+    <th>Lesson</th>
+    <th>内容</th>
+    <th>成绩</th>
+  </tr>
+  <tr>
+    <td id="subject"></td>
+    <td id="term"></td>
+    <td id="course"></td>
+    <td id="lesson"></td>
+    <td id="content"></td>
+    <td id="score"></td>
+  </tr>
+</table>
 
-  <script src="app.js"></script>
+<button onclick="generateReport()">生成评估报告</button>
+
+<h2>📈 报告</h2>
+<div id="report"></div>
+
+<script src="app.js"></script>
 </body>
 </html>
