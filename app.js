@@ -1,5 +1,7 @@
 let records = JSON.parse(localStorage.getItem("records") || "[]");
+let reportCache = JSON.parse(localStorage.getItem("reportCache") || "{}");
 let chartInstance = null;
+let lastReportData = null; // 当前显示的报告原始数据，用于中英切换
 
 window.onload = () => {
   populateFilters();
@@ -28,6 +30,9 @@ async function uploadImage() {
 
   records = records.concat(data.rows);
   localStorage.setItem("records", JSON.stringify(records));
+  // 记录变化时清空报告缓存
+  reportCache = {};
+  localStorage.setItem("reportCache", JSON.stringify(reportCache));
   populateFilters();
   renderTable();
   drawChart();
@@ -202,7 +207,6 @@ async function generateReport() {
   const weekVal = document.getElementById("reportWeek").value;
   const div = document.getElementById("report");
 
-  // 筛选本层数据
   let filtered = [...records];
   if (level === "week") {
     if (!termVal || !weekVal) { alert("请选择 Term 和 Week"); return; }
@@ -214,18 +218,25 @@ async function generateReport() {
 
   if (!filtered.length) { div.innerHTML = "<p>该范围内暂无记录</p>"; return; }
 
+  // 生成缓存 key
+  const cacheKey = `${level}_${termVal}_${weekVal}`;
+
+  // 有缓存直接用
+  if (reportCache[cacheKey]) {
+    lastReportData = reportCache[cacheKey];
+    renderReport(div, lastReportData.data, level, lastReportData.label);
+    return;
+  }
+
   div.innerHTML = "<p style='color:blue'>⏳ AI 正在分析，请稍等...</p>";
 
-  // 构建发给 AI 的摘要
   let payload;
   if (level === "week") {
-    // 直接发原始记录
     payload = { level: "week", label: `${termVal} ${weekVal}`, records: filtered.map(r=>({
       subject: r.subject, lesson: r.lesson, course: r.course,
       score: r.score, weak_points: r.weak_points, suggestions: r.suggestions
     }))};
   } else if (level === "term") {
-    // 按周聚合后发摘要
     const weekMap = {};
     filtered.forEach(r => {
       const w = parseWeek(r.term);
@@ -242,7 +253,6 @@ async function generateReport() {
       weak_points: [...new Set(w.weak_points)]
     }))};
   } else {
-    // 按Term聚合后发摘要
     const termMap = {};
     filtered.forEach(r => {
       const t = parseTerm(r.term);
@@ -267,6 +277,12 @@ async function generateReport() {
     });
     const data = await res.json();
     if (data.error) { div.innerHTML = "报告生成失败：" + data.error; return; }
+
+    // 存入缓存
+    reportCache[cacheKey] = { data, label: payload.label };
+    localStorage.setItem("reportCache", JSON.stringify(reportCache));
+
+    lastReportData = reportCache[cacheKey];
     renderReport(div, data, level, payload.label);
   } catch(e) {
     div.innerHTML = "报告生成失败：" + e.message;
@@ -326,7 +342,7 @@ async function translateReport() {
     div.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <h2 style="margin:0">Report (English)</h2>
-        <button onclick="location.reload()" style="padding:6px 16px;background:#f5f5f5;border:1px solid #ccc;border-radius:6px;cursor:pointer;font-size:14px">🔄 返回中文</button>
+      <button onclick="renderReport(document.getElementById('report'), lastReportData.data, document.getElementById('reportLevel').value, lastReportData.label)" style="padding:6px 16px;background:#f5f5f5;border:1px solid #ccc;border-radius:6px;cursor:pointer;font-size:14px">🔄 返回中文</button>
       </div>
       <div style="line-height:1.8;white-space:pre-wrap">${data.translated}</div>`;
   } catch(e) {
