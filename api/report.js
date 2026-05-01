@@ -1,7 +1,24 @@
 module.exports = async function (req, res) {
   try {
-    const { level, label, records } = JSON.parse(req.body);
+    const { level, label, records, translateText } = JSON.parse(req.body);
     const apiKey = process.env.GEMINI_API_KEY;
+
+    // 翻译模式
+    if (level === "translate") {
+      const response = await fetch(
+        "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" + apiKey,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `Translate the following Chinese learning report into natural English. Keep the structure and meaning exactly the same. Return only the translated text, no extra commentary.\n\n${translateText}` }] }]
+          })
+        }
+      );
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      return res.status(200).json({ translated: text });
+    }
 
     // 根据层级生成不同的摘要文字
     const summary = records.map(r => {
