@@ -72,3 +72,4 @@ ${text}
     res.status(500).json({ error: "服务器错误" });
   }
 };
+console.log("KEY:", process.env.GEMINI_API_KEY);
