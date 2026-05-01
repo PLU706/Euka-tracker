@@ -105,6 +105,14 @@ function renderTable() {
     if (term && !r.term?.includes(term.replace("Term ","Term "))) return false;
     if (week && !r.term?.toLowerCase().includes("week "+week.replace("Week ",""))) return false;
     return true;
+  }).sort((a, b) => {
+    const ta = parseTerm(a.term)||0, tb = parseTerm(b.term)||0;
+    if (ta !== tb) return ta - tb;
+    const wa = parseWeek(a.term)||0, wb = parseWeek(b.term)||0;
+    if (wa !== wb) return wa - wb;
+    const la = parseInt((a.lesson||"").replace(/\D/g,""))||0;
+    const lb = parseInt((b.lesson||"").replace(/\D/g,""))||0;
+    return la - lb;
   });
 
   const tbody = document.getElementById("tableBody");
@@ -140,7 +148,18 @@ function drawChart() {
   const subjFilter = document.getElementById("chartSubject").value;
   if (chartInstance) chartInstance.destroy();
 
-  const filtered = subjFilter ? records.filter(r=>r.subject===subjFilter) : records;
+  // 先按 Term → Week → Lesson 排序
+  const sorted = [...records].sort((a, b) => {
+    const ta = parseTerm(a.term)||0, tb = parseTerm(b.term)||0;
+    if (ta !== tb) return ta - tb;
+    const wa = parseWeek(a.term)||0, wb = parseWeek(b.term)||0;
+    if (wa !== wb) return wa - wb;
+    const la = parseInt((a.lesson||"").replace(/\D/g,""))||0;
+    const lb = parseInt((b.lesson||"").replace(/\D/g,""))||0;
+    return la - lb;
+  });
+
+  const filtered = subjFilter ? sorted.filter(r=>r.subject===subjFilter) : sorted;
   const subjects = [...new Set(filtered.map(r=>r.subject).filter(Boolean))];
   const colors = ["#4a90d9","#e67e22","#2ecc71","#9b59b6","#e74c3c","#1abc9c","#f39c12","#3498db"];
 
