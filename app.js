@@ -308,6 +308,10 @@ async function generateReport() {
   }
 }
 
+function mdBold(text) {
+  return (text||"").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+
 function renderReport(div, data, level, label) {
   const levelLabel = { week:"Week", term:"Term", year:"全年" }[level];
   let html = `
@@ -323,11 +327,11 @@ function renderReport(div, data, level, label) {
         <h3>📚 ${s.subject}</h3>
         <p>平均成绩：<strong>${s.avg_score}%</strong> &nbsp;|&nbsp; 趋势：${trend}</p>
         <h4>⚠️ 薄弱点</h4>
-        <ul>${(s.persistent_weak||[]).length ? s.persistent_weak.map(w=>`<li>${w}</li>`).join("") : "<li>暂无明显薄弱点</li>"}</ul>
+        <ul>${(s.persistent_weak||[]).length ? s.persistent_weak.map(w=>`<li>${mdBold(w)}</li>`).join("") : "<li>暂无明显薄弱点</li>"}</ul>
         <h4>✅ 掌握较好</h4>
-        <ul>${(s.strengths||[]).length ? s.strengths.map(w=>`<li>${w}</li>`).join("") : "<li>暂无数据</li>"}</ul>
+        <ul>${(s.strengths||[]).length ? s.strengths.map(w=>`<li>${mdBold(w)}</li>`).join("") : "<li>暂无数据</li>"}</ul>
         <h4>💡 建议</h4>
-        <ul>${(s.suggestions||[]).map(sg=>`<li>${sg}</li>`).join("")}</ul>
+        <ul>${(s.suggestions||[]).map(sg=>`<li>${mdBold(sg)}</li>`).join("")}</ul>
       </div>`;
   });
 
