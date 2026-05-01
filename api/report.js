@@ -1,53 +1,54 @@
 module.exports = async function (req, res) {
   try {
-    const { records } = JSON.parse(req.body);
-
-    if (!records || records.length === 0) {
-      return res.status(400).json({ error: "没有记录" });
-    }
-
+    const { level, label, records } = JSON.parse(req.body);
     const apiKey = process.env.GEMINI_API_KEY;
 
-    // 把所有记录整理成文字摘要传给 AI
-    const summary = records.map((r, i) => {
-      return `记录${i + 1}：科目=${r.subject || "未知"}，课程=${r.course || ""}，内容=${r.content || ""}，成绩=${r.score || "未知"}%，薄弱点=${(r.weak_points || []).join("；") || "无"}`;
+    // 根据层级生成不同的摘要文字
+    const summary = records.map(r => {
+      if (level === "week") {
+        return `科目=${r.subject}，${r.lesson||""}，课程=${r.course||""}，成绩=${r.score!=null?r.score+"%":"未知"}，薄弱点=${(r.weak_points||[]).join("；")||"无"}`;
+      } else if (level === "term") {
+        return `科目=${r.subject}，${r.week}，平均分=${r.avg_score!=null?r.avg_score+"%":"未知"}，薄弱点=${(r.weak_points||[]).join("；")||"无"}`;
+      } else {
+        return `科目=${r.subject}，${r.term}，平均分=${r.avg_score!=null?r.avg_score+"%":"未知"}，薄弱点=${(r.weak_points||[]).join("；")||"无"}`;
+      }
     }).join("\n");
 
-    const prompt = `
-你是一名专业的学习分析师。以下是一名学生的所有课程学习记录：
+    const levelDesc = {
+      week: "这是某一周的课程记录，请分析该周每节课的具体表现，找出本周薄弱知识点和建议。",
+      term: "这是某个学期（Term）按周聚合的数据，请分析该学期的学习趋势，找出持续薄弱点和进步点。",
+      year: "这是全年按学期聚合的数据，请进行全局分析，找出全年最需要关注的科目和知识点，以及整体学习趋势。"
+    }[level];
 
+    const prompt = `
+你是一名专业的学习分析师。${levelDesc}
+
+报告范围：${label}
+数据如下：
 ${summary}
 
-请对这些记录进行深度分析，返回 ONLY 以下格式的 JSON，不要加任何 markdown 或额外文字：
+请返回 ONLY 以下格式的 JSON，不要加任何 markdown 或额外文字：
 
 {
   "subjects": [
     {
       "subject": "科目名称",
-      "record_count": 记录条数,
       "avg_score": 平均分（整数）,
-      "trend": "up 或 down 或 stable（根据成绩走势判断）",
-      "persistent_weak": [
-        "跨多条记录反复出现的薄弱点，说明学生在这个知识点上持续有困难"
-      ],
-      "strengths": [
-        "学生在哪些知识点上表现稳定或进步明显"
-      ],
-      "suggestions": [
-        "针对该科目的具体、可操作的学习建议，结合成绩趋势和持续薄弱点来给"
-      ]
+      "trend": "up 或 down 或 stable",
+      "persistent_weak": ["跨多条记录反复出现的薄弱点，用中文描述"],
+      "strengths": ["掌握较好或有进步的知识点，用中文描述"],
+      "suggestions": ["具体可操作的学习建议，用中文，结合实际薄弱点"]
     }
   ],
-  "overall": "综合所有科目的总体评价和最优先需要改进的方向，2-3句话"
+  "overall": "综合所有科目的总评和最优先改进方向，2-3句话，中文"
 }
 
-分析要求：
-- 所有文字内容用中文
-- persistent_weak 必须基于跨记录的规律，不要只看单条记录
-- 如果某个薄弱点只出现一次，不算持续薄弱点
-- trend 根据该科目成绩时间顺序判断：总体上升=up，下降=down，波动不大=stable
+要求：
+- 所有内容用中文
+- persistent_weak 必须基于数据中反复出现的问题，不要凭空捏造
 - suggestions 要具体，不要泛泛而谈
-- 只返回 JSON，不要其他任何内容
+- 如果某科目只有一条记录，trend 返回 "stable"
+- 只返回 JSON
 `;
 
     const response = await fetch(
