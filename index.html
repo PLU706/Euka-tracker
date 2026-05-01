@@ -3,17 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <title>学习记录分析工具</title>
-  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    table { border-collapse: collapse; width: 100%; }
+    td, th { border: 1px solid #ccc; padding: 8px; }
+    #loading { display:none; color:blue; }
+  </style>
 </head>
 <body>
 
 <h1>📊 学习记录分析工具</h1>
 
 <input type="file" id="imageInput" />
-<button onclick="uploadImage()">上传并识别</button>
+
+<p id="loading">⏳ 正在识别中，请稍等...</p>
 
 <h2>📋 记录表</h2>
-<table border="1" id="table">
+<table>
   <thead>
     <tr>
       <th>科目</th>
@@ -24,13 +31,16 @@
       <th>成绩</th>
     </tr>
   </thead>
-  <tbody></tbody>
+  <tbody id="tableBody"></tbody>
 </table>
 
 <br>
 <button onclick="generateReport()">生成评估报告</button>
 
-<h2>📈 报告</h2>
+<h2>📈 成绩趋势</h2>
+<canvas id="chart"></canvas>
+
+<h2>📊 报告</h2>
 <div id="report"></div>
 
 <script src="app.js"></script>
