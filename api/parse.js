@@ -1,17 +1,33 @@
-module.exports = async function handler(req, res) {
-  try {
-    const { text } = req.body;
+module.exports = async function (req, res) {
+  // 只允许 POST
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-    if (!text) {
-      return res.status(400).json({ error: "No text provided" });
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    console.log("KEY:", apiKey);
+
+    if (!apiKey) {
+      return res.status(500).json({ error: "No API key" });
     }
 
+    const { image } = req.body;
+
+    if (!image) {
+      return res.status(400).json({ error: "No image provided" });
+    }
+
+    // 去掉 base64 头
+    const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           contents: [
@@ -19,58 +35,69 @@ module.exports = async function handler(req, res) {
               parts: [
                 {
                   text: `
-请从以下OCR文本中提取学习记录，并返回JSON：
+请从这张学习截图中提取以下信息，并返回JSON：
 
-字段：
-- subject
-- term_week
-- lesson_title
-- lesson_number
-- content
-- score
+{
+  "subject": "",
+  "term": "",
+  "course": "",
+  "lesson": "",
+  "content": "",
+  "score": ""
+}
 
-⚠️要求：
+规则：
+- subject: 科目（如 English）
+- term: 如 Term 1 / Week 1
+- course: 课程标题
+- lesson: Lesson 1
+- content: 学习内容总结
+- score: 如 80%
+
 只返回JSON，不要解释
-
-OCR内容：
-${text}
-`
-                }
-              ]
-            }
-          ]
-        })
+                  `,
+                },
+                {
+                  inline_data: {
+                    mime_type: "image/png",
+                    data: base64Data,
+                  },
+                },
+              ],
+            },
+          ],
+        }),
       }
     );
 
     const data = await response.json();
 
-    console.log("Gemini返回：", data);
+    console.log("Gemini raw:", JSON.stringify(data));
 
-    const content =
-      data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    // ❗ 解析 Gemini 返回
+    const text =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // 提取JSON
-    let json = null;
-    try {
-      json = JSON.parse(content);
-    } catch {
-      const match = content.match(/\{[\s\S]*\}/);
-      if (match) {
-        json = JSON.parse(match[0]);
-      }
+    if (!text) {
+      return res.status(500).json({ error: "No text returned", raw: data });
     }
 
-    if (!json) {
-      return res.status(500).json({ error: "解析失败", raw: content });
+    // 提取 JSON（防止模型多说话）
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      return res.status(500).json({
+        error: "JSON parse failed",
+        text: text,
+      });
     }
 
-    res.status(200).json(json);
+    const parsed = JSON.parse(jsonMatch[0]);
 
-  } catch (error) {
-    console.error("Gemini API错误:", error);
-    res.status(500).json({ error: "服务器错误" });
+    return res.status(200).json(parsed);
+
+  } catch (err) {
+    console.error("SERVER ERROR:", err);
+    return res.status(500).json({ error: err.message });
   }
 };
-console.log("KEY:", process.env.GEMINI_API_KEY);
-// force new deploy
