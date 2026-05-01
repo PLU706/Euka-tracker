@@ -1,16 +1,14 @@
 module.exports = async function (req, res) {
-  // 只允许 POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-
     console.log("KEY:", apiKey);
 
     if (!apiKey) {
-      return res.status(500).json({ error: "No API key" });
+      return res.status(500).json({ error: "No API key found" });
     }
 
     const { image } = req.body;
@@ -22,6 +20,7 @@ module.exports = async function (req, res) {
     // 去掉 base64 头
     const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
 
+    // 🔥 调用 Gemini（已用正确模型 + 正确格式）
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
@@ -32,10 +31,11 @@ module.exports = async function (req, res) {
         body: JSON.stringify({
           contents: [
             {
+              role: "user",
               parts: [
                 {
                   text: `
-请从这张学习截图中提取以下信息，并返回JSON：
+从这张学习截图中提取信息，并返回JSON：
 
 {
   "subject": "",
@@ -46,15 +46,15 @@ module.exports = async function (req, res) {
   "score": ""
 }
 
-规则：
-- subject: 科目（如 English）
-- term: 如 Term 1 / Week 1
+要求：
+- subject: 科目（English）
+- term: Term 1 / Week 1
 - course: 课程标题
 - lesson: Lesson 1
-- content: 学习内容总结
-- score: 如 80%
+- content: 内容总结
+- score: 80%
 
-只返回JSON，不要解释
+⚠️ 只返回JSON，不要任何解释
                   `,
                 },
                 {
@@ -72,32 +72,67 @@ module.exports = async function (req, res) {
 
     const data = await response.json();
 
-    console.log("Gemini raw:", JSON.stringify(data));
+    // 🔍 打印完整返回（关键调试）
+    console.log("Gemini FULL RESPONSE:", JSON.stringify(data, null, 2));
 
-    // ❗ 解析 Gemini 返回
-    const text =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    if (!text) {
-      return res.status(500).json({ error: "No text returned", raw: data });
+    // ❗ 如果 Gemini 报错，直接返回
+    if (data.error) {
+      return res.status(500).json({
+        error: "Gemini API Error",
+        details: data.error,
+      });
     }
 
-    // 提取 JSON（防止模型多说话）
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    // ✅ 尝试获取文本（兼容多种结构）
+    let text = "";
 
-    if (!jsonMatch) {
+    if (data.candidates && data.candidates.length > 0) {
+      const parts = data.candidates[0].content.parts;
+
+      for (let p of parts) {
+        if (p.text) {
+          text += p.text;
+        }
+      }
+    }
+
+    if (!text) {
+      return res.status(500).json({
+        error: "No text returned",
+        raw: data,
+      });
+    }
+
+    console.log("AI TEXT:", text);
+
+    // 🧠 提取 JSON（防模型多说话）
+    const match = text.match(/\{[\s\S]*\}/);
+
+    if (!match) {
       return res.status(500).json({
         error: "JSON parse failed",
         text: text,
       });
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    let parsed;
+
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch (e) {
+      return res.status(500).json({
+        error: "JSON format invalid",
+        text: text,
+      });
+    }
 
     return res.status(200).json(parsed);
 
   } catch (err) {
     console.error("SERVER ERROR:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({
+      error: "Server crash",
+      message: err.message,
+    });
   }
 };
