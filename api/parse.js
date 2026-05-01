@@ -13,21 +13,30 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "user",
-            content: `
+content: `
 你是一个数据提取助手。
 
-请从下面OCR文本中提取学习信息，并返回JSON：
+请从下面OCR文本中提取学习信息，并严格返回JSON。
 
-字段：
-- subject（科目）
-- term_week（学期/周次）
-- lesson_title（课程名称）
-- lesson_number（Lesson编号）
-- content（学习内容）
-- score（成绩，例如 80%）
+⚠️要求：
+- 只返回JSON
+- 不要任何解释
+- 不要多余文字
+- 不要使用markdown
+
+格式如下：
+{
+  "subject": "",
+  "term_week": "",
+  "lesson_title": "",
+  "lesson_number": "",
+  "content": "",
+  "score": ""
+}
 
 OCR文本：
 ${text}
+`
 
 只返回JSON，不要解释
 `
