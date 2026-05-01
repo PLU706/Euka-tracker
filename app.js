@@ -1,103 +1,66 @@
-const fileInput = document.getElementById("fileInput");
-const tableBody = document.getElementById("tableBody");
-const reportBox = document.getElementById("report");
-
 let records = JSON.parse(localStorage.getItem("records") || "[]");
 
-renderTable();
+// 页面加载时恢复数据
+window.onload = function () {
+  renderTable();
+};
 
-// 简单翻译函数（核心关键词）
-function translate(text) {
-  if (!text) return "";
-
-  return text
-    .replace(/lesson explores/gi, "本课讲解")
-    .replace(/this lesson explores/gi, "本课讲解")
-    .replace(/the lesson explores/gi, "本课讲解")
-    .replace(/students?/gi, "学生")
-    .replace(/analysis/gi, "分析")
-    .replace(/language/gi, "语言")
-    .replace(/patterns?/gi, "模式")
-    .replace(/examples?/gi, "示例")
-    .replace(/understanding/gi, "理解")
-    .replace(/identify/gi, "识别")
-    .replace(/classification/gi, "分类");
-}
-
-fileInput.addEventListener("change", async () => {
-  const file = fileInput.files[0];
-  if (!file) return;
+// 上传图片
+async function uploadImage() {
+  const file = document.getElementById("imageInput").files[0];
+  if (!file) return alert("请选择图片");
 
   const base64 = await toBase64(file);
 
-  try {
-    const res = await fetch("/api/parse", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ image: base64 }),
-    });
-
-    const data = await res.json();
-
-    if (data.error) {
-      alert("解析失败");
-      return;
-    }
-
-    // ✅ 修正成绩
-    data.score = parseFloat(data.score);
-
-    // ✅ 内容翻译
-    data.content = translate(data.content);
-
-    records.push(data);
-    localStorage.setItem("records", JSON.stringify(records));
-
-    renderTable();
-
-  } catch (err) {
-    console.error(err);
-    alert("请求失败");
-  }
-});
-
-function renderTable() {
-  tableBody.innerHTML = "";
-
-  records.forEach(r => {
-    const tr = document.createElement("tr");
-
-    tr.innerHTML = `
-      <td>${r.subject}</td>
-      <td>${r.term}</td>
-      <td>${r.course}</td>
-      <td>${r.lesson}</td>
-      <td>${r.content}</td>
-      <td>${r.score}%</td>
-    `;
-
-    tableBody.appendChild(tr);
+  const res = await fetch("/api/parse", {
+    method: "POST",
+    body: JSON.stringify({ image: base64 })
   });
-}
 
-function toBase64(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-  });
-}
+  const data = await res.json();
 
-// ✅ 报告（中文完整版）
-function generateReport() {
-  if (records.length === 0) {
-    reportBox.innerHTML = "暂无数据";
+  if (!data || !data.rows) {
+    alert("解析失败");
     return;
   }
 
-  let reportHTML = "";
+  // ⭐追加而不是覆盖
+  records = records.concat(data.rows);
+
+  localStorage.setItem("records", JSON.stringify(records));
+
+  renderTable();
+}
+
+// 渲染表格
+function renderTable() {
+  const tbody = document.querySelector("#table tbody");
+  tbody.innerHTML = "";
+
+  records.forEach(r => {
+    const row = `
+      <tr>
+        <td>${r.subject || ""}</td>
+        <td>${r.term || ""}</td>
+        <td>${r.course || ""}</td>
+        <td>${r.lesson || ""}</td>
+        <td>${r.content || ""}</td>
+        <td>${r.score || ""}</td>
+      </tr>
+    `;
+    tbody.innerHTML += row;
+  });
+}
+
+// ⭐⭐⭐ 核心报告
+function generateReport() {
+  const reportDiv = document.getElementById("report");
+  reportDiv.innerHTML = "";
+
+  if (records.length === 0) {
+    reportDiv.innerHTML = "暂无数据";
+    return;
+  }
 
   const subjects = {};
 
@@ -107,52 +70,71 @@ function generateReport() {
   });
 
   for (let subject in subjects) {
-    let list = subjects[subject];
-    let scores = list.map(r => r.score);
+    const data = subjects[subject];
 
-    let avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
+    const scores = data
+      .map(d => parseFloat(d.score))
+      .filter(s => !isNaN(s));
 
-    let trend = "稳定";
-    if (scores.length >= 2) {
-      let last = scores[scores.length - 1];
-      let prev = scores[scores.length - 2];
-      if (last > prev) trend = "上升 📈";
-      else if (last < prev) trend = "下降 📉";
-    }
+    const avg = scores.length
+      ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)
+      : "0";
 
-    let weak = list
-      .filter(r => r.score < 70)
-      .map(r => r.content);
+    const trend =
+      scores.length >= 2 && scores[scores.length - 1] < scores[0]
+        ? "下降"
+        : "上升/稳定";
 
-    // ✅ 中文建议
-    let suggestion = "整体表现良好，继续保持当前学习节奏。";
+    let weaknesses = [];
+    let suggestions = [];
 
-    if (avg < 70) {
-      suggestion = "基础较弱，建议加强核心知识点练习，提升理解能力。";
-    } else if (trend === "下降 📉") {
-      suggestion = "近期成绩下降，建议复习近期课程内容，查找问题原因。";
-    } else if (trend === "上升 📈") {
-      suggestion = "学习状态良好，可以适当提升难度，进一步强化能力。";
-    }
+    data.forEach(d => {
+      const text = (d.content || "").toLowerCase();
 
-    reportHTML += `
+      if (text.includes("language") || text.includes("inclusive")) {
+        weaknesses.push("语言理解与分析");
+        suggestions.push("加强语言模式（inclusive/exclusive）理解");
+      }
+
+      if (text.includes("story") || text.includes("legend")) {
+        weaknesses.push("阅读理解");
+        suggestions.push("提高长文本理解能力");
+      }
+
+      if (text.includes("morphem") || text.includes("name")) {
+        weaknesses.push("词汇与构词");
+        suggestions.push("强化词根词缀训练");
+      }
+    });
+
+    weaknesses = [...new Set(weaknesses)];
+    suggestions = [...new Set(suggestions)];
+
+    if (weaknesses.length === 0) weaknesses.push("暂无明显薄弱点");
+    if (suggestions.length === 0) suggestions.push("继续保持");
+
+    reportDiv.innerHTML += `
       <h3>📘 ${subject}</h3>
-      <p>📊 平均成绩：${avg}%</p>
-      <p>📈 趋势：${trend}</p>
+      <p>📊 平均成绩: ${avg}%</p>
+      <p>📉 趋势: ${trend}</p>
 
-      <p>⚠️ 薄弱点：</p>
-      <ul>
-        ${weak.length ? weak.map(w => `<li>${w}</li>`).join("") : "<li>暂无明显薄弱点</li>"}
-      </ul>
+      <p>⚠️ 薄弱点:</p>
+      <ul>${weaknesses.map(w => `<li>${w}</li>`).join("")}</ul>
 
-      <p>💡 学习建议：</p>
-      <p>${suggestion}</p>
+      <p>💡 学习建议:</p>
+      <ul>${suggestions.map(s => `<li>${s}</li>`).join("")}</ul>
 
       <hr/>
     `;
   }
-
-  reportBox.innerHTML = reportHTML;
 }
 
-document.getElementById("genReport").onclick = generateReport;
+// base64
+function toBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = reject;
+  });
+}
