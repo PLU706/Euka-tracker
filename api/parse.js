@@ -1,138 +1,90 @@
-module.exports = async function (req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+const input = document.getElementById("fileInput");
+const statusText = document.getElementById("status");
 
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    console.log("KEY:", apiKey);
+input.addEventListener("change", async function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
 
-    if (!apiKey) {
-      return res.status(500).json({ error: "No API key found" });
-    }
+  statusText.innerText = "上传中...";
 
-    const { image } = req.body;
+  const reader = new FileReader();
 
-    if (!image) {
-      return res.status(400).json({ error: "No image provided" });
-    }
+  reader.onload = async function () {
+    const base64 = reader.result;
 
-    // 去掉 base64 头
-    const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
-
-    // 🔥 调用 Gemini（已用正确模型 + 正确格式）
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                {
-                  text: `
-从这张学习截图中提取信息，并返回JSON：
-
-{
-  "subject": "",
-  "term": "",
-  "course": "",
-  "lesson": "",
-  "content": "",
-  "score": ""
-}
-
-要求：
-- subject: 科目（English）
-- term: Term 1 / Week 1
-- course: 课程标题
-- lesson: Lesson 1
-- content: 内容总结
-- score: 80%
-
-⚠️ 只返回JSON，不要任何解释
-                  `,
-                },
-                {
-                  inline_data: {
-                    mime_type: "image/png",
-                    data: base64Data,
-                  },
-                },
-              ],
-            },
-          ],
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    // 🔍 打印完整返回（关键调试）
-    console.log("Gemini FULL RESPONSE:", JSON.stringify(data, null, 2));
-
-    // ❗ 如果 Gemini 报错，直接返回
-    if (data.error) {
-      return res.status(500).json({
-        error: "Gemini API Error",
-        details: data.error,
-      });
-    }
-
-    // ✅ 尝试获取文本（兼容多种结构）
-    let text = "";
-
-    if (data.candidates && data.candidates.length > 0) {
-      const parts = data.candidates[0].content.parts;
-
-      for (let p of parts) {
-        if (p.text) {
-          text += p.text;
-        }
-      }
-    }
-
-    if (!text) {
-      return res.status(500).json({
-        error: "No text returned",
-        raw: data,
-      });
-    }
-
-    console.log("AI TEXT:", text);
-
-    // 🧠 提取 JSON（防模型多说话）
-    const match = text.match(/\{[\s\S]*\}/);
-
-    if (!match) {
-      return res.status(500).json({
-        error: "JSON parse failed",
-        text: text,
-      });
-    }
-
-    let parsed;
+    console.log("base64:", base64.slice(0, 50));
 
     try {
-      parsed = JSON.parse(match[0]);
-    } catch (e) {
-      return res.status(500).json({
-        error: "JSON format invalid",
-        text: text,
+      const res = await fetch("/api/parse", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          image: base64
+        })
       });
+
+      const data = await res.json();
+
+      console.log("返回数据:", data);
+
+      if (!res.ok) {
+        statusText.innerText = "解析失败 ❌";
+        alert(JSON.stringify(data));
+        return;
+      }
+
+      statusText.innerText = "识别成功 ✅";
+
+      // 填充表格
+      document.getElementById("subject").innerText = data.subject || "";
+      document.getElementById("term").innerText = data.term || "";
+      document.getElementById("course").innerText = data.course || "";
+      document.getElementById("lesson").innerText = data.lesson || "";
+      document.getElementById("content").innerText = data.content || "";
+      document.getElementById("score").innerText = data.score || "";
+
+      // 保存历史（用于报告）
+      localStorage.setItem("lastRecord", JSON.stringify(data));
+
+    } catch (err) {
+      console.error(err);
+      statusText.innerText = "请求失败 ❌";
     }
+  };
 
-    return res.status(200).json(parsed);
+  reader.readAsDataURL(file);
+});
 
-  } catch (err) {
-    console.error("SERVER ERROR:", err);
-    return res.status(500).json({
-      error: "Server crash",
-      message: err.message,
-    });
+function generateReport() {
+  const data = JSON.parse(localStorage.getItem("lastRecord"));
+
+  if (!data) {
+    alert("没有数据");
+    return;
   }
-};
+
+  let score = parseInt(data.score);
+
+  let level = "";
+  let suggestion = "";
+
+  if (score >= 80) {
+    level = "表现良好";
+    suggestion = "继续保持，适当增加难度训练。";
+  } else if (score >= 60) {
+    level = "中等水平";
+    suggestion = "加强薄弱知识点练习。";
+  } else {
+    level = "需要提升";
+    suggestion = "建议复习基础内容，多做练习。";
+  }
+
+  document.getElementById("report").innerHTML = `
+    <p><strong>科目：</strong>${data.subject}</p>
+    <p><strong>成绩：</strong>${data.score}</p>
+    <p><strong>评估：</strong>${level}</p>
+    <p><strong>建议：</strong>${suggestion}</p>
+  `;
+}
