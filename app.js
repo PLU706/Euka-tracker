@@ -52,9 +52,27 @@ async function parseWithAI(text) {
     // 从AI返回中提取内容
     let content = data.choices?.[0]?.message?.content;
 
-    console.log("AI返回：", content);
+    console.log("AI原始返回：", content);
 
     if (!content) return null;
+
+    try {
+      // 直接尝试解析
+      return JSON.parse(content);
+    } catch (e) {
+      // 如果失败，再用正则提取
+      let match = content.match(/\{[\s\S]*\}/);
+
+      if (match) {
+        try {
+          return JSON.parse(match[0]);
+        } catch {
+          return null;
+        }
+      }
+
+      return null;
+    }
 
     // 提取JSON（防止AI多说话）
     let match = content.match(/\{[\s\S]*\}/);
