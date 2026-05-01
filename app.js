@@ -1,14 +1,18 @@
 let records = JSON.parse(localStorage.getItem("records") || "[]");
 
-// 页面加载时恢复数据
-window.onload = function () {
+window.onload = () => {
   renderTable();
+  drawChart();
 };
 
-// 上传图片
+// ⭐ 自动上传
+document.getElementById("imageInput").addEventListener("change", uploadImage);
+
 async function uploadImage() {
   const file = document.getElementById("imageInput").files[0];
-  if (!file) return alert("请选择图片");
+  if (!file) return;
+
+  document.getElementById("loading").style.display = "block";
 
   const base64 = await toBase64(file);
 
@@ -19,114 +23,123 @@ async function uploadImage() {
 
   const data = await res.json();
 
-  if (!data || !data.rows) {
+  document.getElementById("loading").style.display = "none";
+
+  if (!data.rows) {
     alert("解析失败");
     return;
   }
 
-  // ⭐追加而不是覆盖
   records = records.concat(data.rows);
-
   localStorage.setItem("records", JSON.stringify(records));
 
   renderTable();
+  drawChart();
 }
 
 // 渲染表格
 function renderTable() {
-  const tbody = document.querySelector("#table tbody");
+  const tbody = document.getElementById("tableBody");
   tbody.innerHTML = "";
 
   records.forEach(r => {
-    const row = `
+    tbody.innerHTML += `
       <tr>
-        <td>${r.subject || ""}</td>
-        <td>${r.term || ""}</td>
-        <td>${r.course || ""}</td>
-        <td>${r.lesson || ""}</td>
-        <td>${r.content || ""}</td>
-        <td>${r.score || ""}</td>
+        <td>${r.subject}</td>
+        <td>${r.term}</td>
+        <td>${r.course}</td>
+        <td>${r.lesson}</td>
+        <td>${r.content}</td>
+        <td>${r.score}</td>
       </tr>
     `;
-    tbody.innerHTML += row;
   });
 }
 
-// ⭐⭐⭐ 核心报告
+// 📈 图表
+function drawChart() {
+  const ctx = document.getElementById("chart");
+
+  const scores = records.map(r => parseFloat(r.score)).filter(s => !isNaN(s));
+
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: scores.map((_, i) => "记录" + (i+1)),
+      datasets: [{
+        label: "成绩变化",
+        data: scores
+      }]
+    }
+  });
+}
+
+// ⭐⭐⭐ AI风格分析（增强版）
 function generateReport() {
-  const reportDiv = document.getElementById("report");
-  reportDiv.innerHTML = "";
+  const div = document.getElementById("report");
+  div.innerHTML = "";
 
   if (records.length === 0) {
-    reportDiv.innerHTML = "暂无数据";
+    div.innerHTML = "暂无数据";
     return;
   }
 
-  const subjects = {};
+  const scores = records.map(r => parseFloat(r.score)).filter(s => !isNaN(s));
+
+  const avg = (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1);
+  const trend = scores[scores.length-1] < scores[0] ? "下降" : "上升";
+
+  let weak = {};
+  let suggestions = [];
 
   records.forEach(r => {
-    if (!subjects[r.subject]) subjects[r.subject] = [];
-    subjects[r.subject].push(r);
+    const text = (r.content || "").toLowerCase();
+
+    if (text.includes("language")) {
+      weak["语言分析能力"] = true;
+    }
+
+    if (text.includes("story") || text.includes("legend")) {
+      weak["阅读理解能力"] = true;
+    }
+
+    if (text.includes("morphem")) {
+      weak["词汇与构词能力"] = true;
+    }
   });
 
-  for (let subject in subjects) {
-    const data = subjects[subject];
-
-    const scores = data
-      .map(d => parseFloat(d.score))
-      .filter(s => !isNaN(s));
-
-    const avg = scores.length
-      ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)
-      : "0";
-
-    const trend =
-      scores.length >= 2 && scores[scores.length - 1] < scores[0]
-        ? "下降"
-        : "上升/稳定";
-
-    let weaknesses = [];
-    let suggestions = [];
-
-    data.forEach(d => {
-      const text = (d.content || "").toLowerCase();
-
-      if (text.includes("language") || text.includes("inclusive")) {
-        weaknesses.push("语言理解与分析");
-        suggestions.push("加强语言模式（inclusive/exclusive）理解");
-      }
-
-      if (text.includes("story") || text.includes("legend")) {
-        weaknesses.push("阅读理解");
-        suggestions.push("提高长文本理解能力");
-      }
-
-      if (text.includes("morphem") || text.includes("name")) {
-        weaknesses.push("词汇与构词");
-        suggestions.push("强化词根词缀训练");
-      }
-    });
-
-    weaknesses = [...new Set(weaknesses)];
-    suggestions = [...new Set(suggestions)];
-
-    if (weaknesses.length === 0) weaknesses.push("暂无明显薄弱点");
-    if (suggestions.length === 0) suggestions.push("继续保持");
-
-    reportDiv.innerHTML += `
-      <h3>📘 ${subject}</h3>
-      <p>📊 平均成绩: ${avg}%</p>
-      <p>📉 趋势: ${trend}</p>
-
-      <p>⚠️ 薄弱点:</p>
-      <ul>${weaknesses.map(w => `<li>${w}</li>`).join("")}</ul>
-
-      <p>💡 学习建议:</p>
-      <ul>${suggestions.map(s => `<li>${s}</li>`).join("")}</ul>
-
-      <hr/>
-    `;
+  // ⭐更智能建议
+  if (weak["语言分析能力"]) {
+    suggestions.push("加强对语言模式（如inclusive/exclusive）的理解，重点训练概念辨析题");
   }
+
+  if (weak["阅读理解能力"]) {
+    suggestions.push("提升长文本阅读能力，练习快速抓主旨与细节定位");
+  }
+
+  if (weak["词汇与构词能力"]) {
+    suggestions.push("加强词根词缀训练，提高词汇分析能力");
+  }
+
+  if (trend === "下降") {
+    suggestions.push("近期成绩下降，建议复盘错题，找出知识漏洞");
+  }
+
+  div.innerHTML = `
+    <h3>📊 总体分析</h3>
+    <p>平均成绩：${avg}%</p>
+    <p>趋势：${trend}</p>
+
+    <h3>⚠️ 薄弱点</h3>
+    <ul>
+      ${Object.keys(weak).map(w=>`<li>${w}</li>`).join("") || "<li>暂无明显薄弱点</li>"}
+    </ul>
+
+    <h3>💡 学习建议</h3>
+    <ul>
+      ${suggestions.map(s=>`<li>${s}</li>`).join("")}
+    </ul>
+  `;
 }
 
 // base64
@@ -135,6 +148,5 @@ function toBase64(file) {
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => resolve(reader.result.split(",")[1]);
-    reader.onerror = reject;
   });
 }
