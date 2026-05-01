@@ -275,7 +275,11 @@ async function generateReport() {
 
 function renderReport(div, data, level, label) {
   const levelLabel = { week:"Week", term:"Term", year:"全年" }[level];
-  let html = `<h2>${levelLabel} 报告 — ${label}</h2>`;
+  let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <h2 style="margin:0">${levelLabel} 报告 — ${label}</h2>
+      <button onclick="translateReport()" style="padding:6px 16px;background:#f5f5f5;border:1px solid #ccc;border-radius:6px;cursor:pointer;font-size:14px">🌐 转为英文</button>
+    </div>`;
 
   (data.subjects||[]).forEach(s => {
     const trend = s.trend==="up"?"📈 上升":s.trend==="down"?"📉 下降":"➡️ 平稳";
@@ -296,6 +300,39 @@ function renderReport(div, data, level, label) {
     html += `<div class="overall-box"><h3>🎯 综合建议</h3><p>${data.overall}</p></div>`;
   }
   div.innerHTML = html;
+}
+
+// ─── 翻译报告 ──────────────────────────────────────────
+async function translateReport() {
+  const div = document.getElementById("report");
+  const originalHTML = div.innerHTML;
+  const text = div.innerText;
+
+  div.innerHTML = "<p style='color:blue'>⏳ 正在翻译，请稍等...</p>";
+
+  try {
+    const res = await fetch("/api/report", {
+      method: "POST",
+      body: JSON.stringify({
+        level: "translate",
+        label: "",
+        records: [],
+        translateText: text
+      })
+    });
+    const data = await res.json();
+    if (data.error) { div.innerHTML = originalHTML; alert("翻译失败：" + data.error); return; }
+
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <h2 style="margin:0">Report (English)</h2>
+        <button onclick="location.reload()" style="padding:6px 16px;background:#f5f5f5;border:1px solid #ccc;border-radius:6px;cursor:pointer;font-size:14px">🔄 返回中文</button>
+      </div>
+      <div style="line-height:1.8;white-space:pre-wrap">${data.translated}</div>`;
+  } catch(e) {
+    div.innerHTML = originalHTML;
+    alert("翻译失败：" + e.message);
+  }
 }
 
 // ─── 工具函数 ──────────────────────────────────────────
