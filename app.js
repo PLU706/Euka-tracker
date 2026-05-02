@@ -1,52 +1,9 @@
-// ─── 全局变量（最顶部）──────────────────────────────────
 let records = JSON.parse(localStorage.getItem("records") || "[]");
 let reportCache = JSON.parse(localStorage.getItem("reportCache") || "{}");
 let chartInstance = null;
-let lastReportData = null;
-
-const SUBJECT_MAP = {
-  "math": "Mathematics",
-  "maths": "Mathematics",
-  "mathematics": "Mathematics",
-  "english": "English",
-  "science": "Science",
-  "history": "History",
-  "geography": "Geography",
-  "health": "Health",
-  "physical education": "Physical Education",
-  "pe": "Physical Education",
-  "business and economics": "Business and Economics",
-  "business": "Business and Economics",
-  "economics": "Business and Economics",
-  "financial literacy": "Financial Literacy",
-  "civics and citizenship": "Civics and Citizenship",
-  "civics": "Civics and Citizenship",
-  "computer technology": "Computer Technology: Game and Media Development",
-  "computer technology: game and media development": "Computer Technology: Game and Media Development",
-  "spanish": "Spanish: Communication and Identity",
-  "spanish: communication and identity": "Spanish: Communication and Identity",
-  "visual arts": "Visual Arts: Human and Natural Art",
-  "visual arts: human and natural art": "Visual Arts: Human and Natural Art",
-  "art": "Visual Arts: Human and Natural Art",
-};
-
-function normalizeSubject(name) {
-  if (!name) return name;
-  const key = name.trim().toLowerCase();
-  return SUBJECT_MAP[key] || name.trim();
-}
-
+let lastReportData = null; // 当前显示的报告原始数据，用于中英切换
 
 window.onload = () => {
-  // 修复已有记录中的科目名称
-  let changed = false;
-  records = records.map(r => {
-    const fixed = normalizeSubject(r.subject);
-    if (fixed !== r.subject) { changed = true; return { ...r, subject: fixed }; }
-    return r;
-  });
-  if (changed) localStorage.setItem("records", JSON.stringify(records));
-
   populateFilters();
   renderTable();
   drawChart();
@@ -71,8 +28,7 @@ async function uploadImage() {
 
   if (!data.rows) { alert("解析失败"); return; }
 
-  const normalized = data.rows.map(r => ({ ...r, subject: normalizeSubject(r.subject) }));
-  records = records.concat(normalized);
+  records = records.concat(data.rows);
   localStorage.setItem("records", JSON.stringify(records));
   // 记录变化时清空报告缓存
   reportCache = {};
