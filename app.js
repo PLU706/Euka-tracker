@@ -1,3 +1,9 @@
+// ─── 全局变量（最顶部）──────────────────────────────────
+let records = JSON.parse(localStorage.getItem("records") || "[]");
+let reportCache = JSON.parse(localStorage.getItem("reportCache") || "{}");
+let chartInstance = null;
+let lastReportData = null;
+
 const SUBJECT_MAP = {
   "math": "Mathematics",
   "maths": "Mathematics",
@@ -30,11 +36,6 @@ function normalizeSubject(name) {
   return SUBJECT_MAP[key] || name.trim();
 }
 
-
-let records = JSON.parse(localStorage.getItem("records") || "[]");
-let reportCache = JSON.parse(localStorage.getItem("reportCache") || "{}");
-let chartInstance = null;
-let lastReportData = null; // 当前显示的报告原始数据，用于中英切换
 
 window.onload = () => {
   // 修复已有记录中的科目名称
