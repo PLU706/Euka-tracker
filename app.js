@@ -31,6 +31,7 @@ function normalizeSubject(name) {
 }
 
 
+let records = JSON.parse(localStorage.getItem("records") || "[]");
 let reportCache = JSON.parse(localStorage.getItem("reportCache") || "{}");
 let chartInstance = null;
 let lastReportData = null; // 当前显示的报告原始数据，用于中英切换
